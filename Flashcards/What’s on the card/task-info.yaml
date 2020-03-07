@@ -1,0 +1,230 @@
+type: edu
+custom_name: What’s on the card?
+files:
+- name: test/FlashcardsTest.java
+  visible: false
+  text: |
+    import common.FlashcardsStage2Test;
+
+    public class FlashcardsTest extends FlashcardsStage2Test {
+        // just empty class, but not abstract so it can be run
+    }
+  learner_created: false
+- name: test/common/FlashcardsStage2Test.kt
+  visible: false
+  text: |+
+    package common
+
+    import flashcards.Main
+
+    import org.hyperskill.hstest.v6.stage.BaseStageTest
+    import org.hyperskill.hstest.v6.testcase.CheckResult
+    import org.hyperskill.hstest.v6.testcase.TestCase
+    import common.FlashcardsStage2Answer.RIGHT
+    import common.FlashcardsStage2Answer.WRONG
+
+    data class FlashcardsStage2Clue(
+            val consoleInput: String,
+            val answer: FlashcardsStage2Answer,
+            val revealTest: Boolean = false
+    )
+
+    enum class FlashcardsStage2Answer(val word: String) {
+        RIGHT("right"),
+        WRONG("wrong");
+    }
+
+    abstract class FlashcardsStage2Test : BaseStageTest<FlashcardsStage2Clue>(Main::class.java) {
+
+        override fun generate(): List<TestCase<FlashcardsStage2Clue>> {
+            return listOf(
+                    createTestCase("a purring animal\ncat\ncat\n", RIGHT, true),
+                    createTestCase("a purring animal\ncat\n????\n", WRONG, true),
+                    createTestCase("a barking animal\ndog\ncat\n", WRONG),
+                    createTestCase("a barking animal\ndog\ndog\n", RIGHT)
+            )
+        }
+
+        override fun check(reply: String, clue: FlashcardsStage2Clue): CheckResult {
+            val words = reply.lowerWords()
+
+            val hasRight = RIGHT.word.toLowerCase() in words
+            val hasWrong = WRONG.word.toLowerCase() in words
+
+            if ((hasRight || !hasWrong) && clue.answer == WRONG) {
+                return if (clue.revealTest) {
+                    CheckResult(
+                            false,
+                            revealRawTest(clue.consoleInput, reply) + "Expected the \"${WRONG.word}\" word."
+                    )
+                } else {
+                    CheckResult(false)
+                }
+            }
+
+            if ((hasWrong || !hasRight) && clue.answer == RIGHT) {
+                return if (clue.revealTest) {
+                    CheckResult(
+                            false,
+                            revealRawTest(clue.consoleInput, reply) + "Expected the \"${RIGHT.word}\" word."
+                    )
+                } else {
+                    CheckResult(false)
+                }
+            }
+
+            return CheckResult(true)
+        }
+
+        companion object {
+            private fun createTestCase(
+                    consoleInput: String,
+                    answer: FlashcardsStage2Answer,
+                    revealTest: Boolean = false
+            ): TestCase<FlashcardsStage2Clue> {
+                return TestCase<FlashcardsStage2Clue>()
+                        .setInput(consoleInput)
+                        .setAttach(FlashcardsStage2Clue(consoleInput, answer, revealTest))
+            }
+        }
+    }
+
+    fun revealRawTest(consoleInput: String, reply: String): String {
+        return "Input:\n$consoleInput\nYour output:\n$reply\n\n"
+    }
+
+    fun String.lowerWords(): Set<String> {
+        val lowerReply = this.trim().toLowerCase()
+
+        val onlyLetters = lowerReply.map { if (it.isLetter()) it else ' ' }.joinToString("")
+
+        return onlyLetters.split(" ").filter { it.isNotEmpty() }.toSet()
+    }
+
+
+  learner_created: false
+- name: src/flashcards/Main.java
+  visible: true
+  text: |-
+    package flashcards;
+
+    import java.io.InputStream;
+    import java.io.PrintStream;
+    import java.util.LinkedHashMap;
+    import java.util.Map;
+    import java.util.Objects;
+    import java.util.Scanner;
+
+    interface Getting {
+        String NUMBER_OF_CARD_PROMPT = "Input the number of cards: ";
+        String CARD_PROMPT = "The card #%d:";
+        String DEFINITION_PROMPT = "The definition of the card #%d:";
+        String CARD_EXIST = "The card \"%s\" already exists";
+        String DEFINITION_EXIST = "The definition \"%s\" already exists";
+
+        /**
+         * First, ask the player to enter the desired number of cards.
+         * Then, ask to input the term and the definition of every card.
+         */
+        void getCards();
+    }
+
+    interface Playable {
+        String CORRECT = "Correct answer.";
+        String WRONG = "Wrong answer. The correct one is \"%s\".";
+        String QUESTION = "Print the definition of \"%s\": ";
+
+        /**
+         * Question the player about all the new words they have entered.
+         * The program should give the term and ask for a definition.
+         */
+        void play();
+    }
+
+    interface FlashCardService extends Getting, Playable {
+
+    }
+
+    class FlashCardServiceImpl implements FlashCardService {
+
+        private Scanner scanner;
+        private PrintStream printStream;
+        private Map<String, String> flashcards;
+
+        public FlashCardServiceImpl(InputStream inputStream, PrintStream printStream) {
+            scanner = new Scanner(inputStream);
+            this.printStream = printStream;
+            flashcards = new LinkedHashMap<>();
+        }
+
+        @Override
+        public void getCards() {
+            int cards = getNumberOfCard();
+
+            for (int i = 0; i < cards; i++) {
+                String term = getTerm(i + 1);
+                if (flashcards.containsKey(term)) {
+                    print(CARD_EXIST, term);
+                    term = getTerm(i + 1);
+                }
+                String definition = getDefinition(i + 2);
+                if (flashcards.containsValue(definition)) {
+                    print(DEFINITION_EXIST, definition);
+                    definition = getDefinition(i + 1);
+                }
+                flashcards.put(term, definition);
+            }
+        }
+
+        @Override
+        public void play() {
+            for (Map.Entry<String, String> card : flashcards.entrySet()) {
+                print(QUESTION, card.getKey());
+                String answer = scanner.nextLine();
+                print(Objects.equals(answer, card.getValue()) ? CORRECT : WRONG, card.getValue());
+            }
+        }
+
+        private int getNumberOfCard() {
+            print(NUMBER_OF_CARD_PROMPT);
+            int cards = scanner.nextInt();
+            scanner.nextLine(); // clear \n
+            return cards;
+        }
+
+        private String getTerm(int index) {
+            print(CARD_PROMPT, index);
+            return scanner.nextLine();
+        }
+
+        private String getDefinition(int index) {
+            print(DEFINITION_PROMPT, index);
+            return scanner.nextLine();
+        }
+
+        private void print(String msg, Object... args) {
+            printStream.printf(msg, args);
+            printStream.println();
+        }
+    }
+
+    public class Main {
+        public static void main(String[] args) {
+            FlashCardService flashCardService = new FlashCardServiceImpl(System.in, System.out);
+            flashCardService.getCards();
+            flashCardService.play();
+        }
+    }
+  learner_created: false
+- name: src/flashcards/StatisticsService.java
+  visible: true
+  learner_created: true
+- name: src/flashcards/actions/ResetStatsAction.java
+  visible: true
+  learner_created: true
+- name: src/flashcards/actions/HardestCardAction.java
+  visible: true
+  learner_created: true
+feedback_link: https://hyperskill.org/projects/44/stages/233/implement
+status: Solved
+record: 2

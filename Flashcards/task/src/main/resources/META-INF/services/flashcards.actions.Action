@@ -1,0 +1,10 @@
+flashcards.actions.AddAction
+flashcards.actions.RemoveAction
+flashcards.actions.ImportAction
+flashcards.actions.ExportAction
+flashcards.actions.AskAction
+flashcards.actions.ExitAction
+flashcards.actions.LogAction
+flashcards.actions.HardestCardAction
+flashcards.actions.ResetStatsAction
+flashcards.actions.DefaultAction
